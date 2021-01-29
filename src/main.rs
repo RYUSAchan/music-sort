@@ -1,14 +1,14 @@
 use std::fs;
 use std::vec::Vec;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::env;
 use regex::Regex;
 use id3::Tag;
 
-const ROOT_DIRECTORY :&str = "./sorted";
+const ROOT_DIRECTORY :&str = "sorted";
 
-fn get_mp3_info(path: &str) -> (String, String){
-    let tag= Tag::read_from_path(path).expect("Failed to read mp3 file");
+fn get_mp3_info(path: &Path) -> (String, String){
+    let tag= Tag::read_from_path(path).unwrap_or_else(|_e| panic!("Failed to read mp3 file : {}", path.display()));
     let album = match tag.album() {
         Some(n) => n,
         None => "no album",
@@ -21,30 +21,33 @@ fn get_mp3_info(path: &str) -> (String, String){
 }
 
 fn main() {
-    let re = Regex::new(r"/.+/").unwrap();
-    let mp3_regex = Regex::new(r".+\.mp3").unwrap();
+    let mp3_regex = Regex::new(r".+\.mp3?").unwrap();
     let current_path = env::current_exe().unwrap();
-    let current_path = current_path.to_str().unwrap();
-    let caps = re.captures(current_path).unwrap();
-    let current_path = &caps[0];
-    let paths = fs::read_dir(current_path.to_string() + "/").expect("File system Error.");
+    let current_path = current_path.parent().unwrap();
+    let paths = fs::read_dir(current_path).unwrap();
     let mut mp3_file_list : Vec<String> = Vec::new();
-
+    
     for path in paths {
-        let path_string = path.unwrap().file_name().into_string().unwrap();
-        if mp3_regex.is_match(&path_string) {
-            mp3_file_list.push(path_string);
+        let path_string = path.unwrap().path();
+        let path_string = path_string.file_name().unwrap();
+        let path_string = path_string.to_str().unwrap();
+        if mp3_regex.is_match(path_string) {
+            mp3_file_list.push(path_string.to_string());
         }
     }
+    
     for path in mp3_file_list.iter(){
-        let music_path = current_path.to_string() + &path;
+        let mut music_path = PathBuf::from(current_path);
+        music_path.push(path);
         let (_artist, album) = get_mp3_info(&music_path);
-        let output_path = current_path.to_string() + ROOT_DIRECTORY + "/" + &album;
-        if !Path::new(&output_path).exists() {
+        let mut output_path = PathBuf::from(current_path);
+        output_path.push(ROOT_DIRECTORY);
+        output_path.push(album);
+        if !output_path.exists() {
             fs::create_dir_all(&output_path).expect("Failed to create directory.");
         }
-        let move_path = output_path.clone() + "/" + &path;
-        fs::rename(&music_path, &move_path).expect("Failed to rename.");
+        output_path.push(path);
+        fs::rename(music_path, output_path).expect("Failed to rename.");
     }
     println!("Done!");
 }
