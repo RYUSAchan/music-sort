@@ -17,7 +17,7 @@ fn get_mp3_info(path: &Path) -> Result<(String, String), &str> {
             Some(n) => n,
             None => "no artist",
         };
-        Ok((artist.to_string(), album.to_string()))
+        Ok((artist.to_string(), album.to_string().replace("/", "-")))
     } else {
         if let Some(s) = path.to_str() {
             Err(s)
